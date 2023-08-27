@@ -1,14 +1,11 @@
-from sentence_transformers import util
 from transformers import BartTokenizer
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 
 from torchtyping import TensorType, patch_typeguard
 from typeguard import typechecked
@@ -16,7 +13,7 @@ from typeguard import typechecked
 patch_typeguard()
 
 class EmbedderAndEncoderBase(nn.Module, ABC):
-    """Some Information about EmbedderAndEncoderBase"""
+    """Base class for embedding and positional encoding"""
     
     def __init__(self, dict_size: int, embedding_size: int = 512, max_sequence_len: int = 50, n_parameter: int = 10000):
         super(EmbedderAndEncoderBase, self).__init__()
@@ -35,10 +32,6 @@ class EmbedderAndEncoderBase(nn.Module, ABC):
                 np_positional_encodings_matrix[sentence_pos, 2*dimension_pos+1] = np.cos(theta)
         positional_encodings_matrix = torch.tensor(data=np_positional_encodings_matrix, dtype=float)
         self.register_buffer("positional_encodings_matrix", positional_encodings_matrix)
-    
-    @abstractmethod
-    def generate_mask(self, tokenized_sentences: TensorType['batch_size', 'tokens_num', int]) -> TensorType['batch_size', 'max_sequence_len', bool]:
-        pass
                 
     @typechecked
     def forward(self, tokenized_sentences: TensorType['batch_size', 'tokens_num', int]) -> (TensorType['batch_size', 'tokens_num', 'embedding_size', torch.float64], TensorType['batch_size', 'max_sequence_len', bool]):
@@ -57,25 +50,37 @@ class InputEmbedderAndEncoder(EmbedderAndEncoderBase):
         mask = tokenized_sentences != pad_token_id
         return mask
 
-    
+class OutputEmbedderAndEncoder(EmbedderAndEncoderBase):
+    def __init__(self, dict_size: int, embedding_size: int = 512, max_sequence_len: int = 50, n_parameter: int = 10000):
+        super(OutputEmbedderAndEncoder, self).__init__(dict_size, embedding_size, max_sequence_len, n_parameter)
+        
+    def generate_mask(self, tokenized_sentences: TensorType['batch_size', 'tokens_num', int], pad_token_id: int = 1) -> TensorType['batch_size', 'max_sequence_len', bool]:
+        mask = (tokenized_sentences != pad_token_id).unsqueeze(1).unsqueeze(3)
+        nopeak = (torch.tril(torch.ones(1, max_seq_len, max_seq_len), diagonal=0)).bool()
+        mask = mask & nopeak
+        return mask
+
 if __name__ == "__main__":
-    max_seq_len = 50
-    embedding_size = 64
+    max_seq_len = 6
+    embedding_size = 4
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('Using device:', device)
     print()
     
     model = BartTokenizer.from_pretrained("facebook/bart-base")
-    print(model.pad_token_id)
-    sentences = ['I am sick.',
-                'I feel well.',
-                'I\'m feeling great',
-                'I am feeling great',
-                'I feel very very very good.']
+    # print(model.pad_token_id)
+    sentences = ['I am',
+                # 'I feel well.',
+                # 'I\'m feeling great',
+                # 'I am feeling great',
+                'I feel very.']
     sentences_tokens = []
     sentences_tokens = torch.tensor(data=model(sentences, padding='max_length', max_length=max_seq_len)["input_ids"], dtype=int)
     embedder = InputEmbedderAndEncoder(model.vocab_size, max_sequence_len=max_seq_len, embedding_size=embedding_size)
     positional_encodings, mask = embedder.forward(sentences_tokens)
+    
+    embedder2 = OutputEmbedderAndEncoder(model.vocab_size, max_sequence_len=max_seq_len, embedding_size=embedding_size)
+    positional_encodings2, mask2 = embedder2.forward(sentences_tokens)
     
     positional_encodings_matrix = embedder.positional_encodings_matrix.numpy()
     sns.heatmap(embedder.positional_encodings_matrix.numpy(), cbar_kws={'label': 'Wartość'})
