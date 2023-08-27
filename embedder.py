@@ -21,15 +21,16 @@ class EmbedderAndEncoderBase(nn.Module, ABC):
     def __init__(self, dict_size: int, embedding_size: int = 512, max_sequence_len: int = 50, n_parameter: int = 10000):
         super(EmbedderAndEncoderBase, self).__init__()
         self.max_sequence_len=max_sequence_len
+        self.embedding_size = embedding_size
         self.embedding = nn.Embedding(num_embeddings=dict_size, embedding_dim=embedding_size)
-        self.generate_positional_encodings(embedding_size, max_sequence_len, n_parameter)
+        self.generate_positional_encodings(max_sequence_len, n_parameter)
         
     @typechecked
-    def generate_positional_encodings(self, embedding_size: int, max_sequence_len: int, n_parameter: int) -> None:
-        np_positional_encodings_matrix = np.zeros([max_sequence_len, embedding_size])
+    def generate_positional_encodings(self, max_sequence_len: int, n_parameter: int) -> None:
+        np_positional_encodings_matrix = np.zeros([max_sequence_len, self.embedding_size])
         for sentence_pos in np.arange(max_sequence_len):
-            for dimension_pos in np.arange(embedding_size//2):
-                theta = sentence_pos / (n_parameter ** (2*dimension_pos/embedding_size))
+            for dimension_pos in np.arange(self.embedding_size//2):
+                theta = sentence_pos / (n_parameter ** (2*dimension_pos/self.embedding_size))
                 np_positional_encodings_matrix[sentence_pos, 2*dimension_pos] = np.sin(theta)
                 np_positional_encodings_matrix[sentence_pos, 2*dimension_pos+1] = np.cos(theta)
         positional_encodings_matrix = torch.tensor(data=np_positional_encodings_matrix, dtype=float)
@@ -44,7 +45,7 @@ class EmbedderAndEncoderBase(nn.Module, ABC):
         embeddings = self.embedding(tokenized_sentences)
         with torch.no_grad():
             positional_encoding = self.positional_encodings_matrix[:tokenized_sentences.shape[1]]
-            encoded_embeddings = embeddings+positional_encoding
+            encoded_embeddings = embeddings * np.sqrt(self.embedding_size) + positional_encoding
             mask = self.generate_mask(tokenized_sentences)
         return encoded_embeddings, mask
 
@@ -76,15 +77,18 @@ if __name__ == "__main__":
     embedder = InputEmbedderAndEncoder(model.vocab_size, max_sequence_len=max_seq_len, embedding_size=embedding_size)
     positional_encodings, mask = embedder.forward(sentences_tokens)
     
-    print(positional_encodings.shape)
-    # print(mask)
-    print(embedder.positional_encodings_matrix.numpy().shape)
-    sns.heatmap(embedder.positional_encodings_matrix.numpy())
+    positional_encodings_matrix = embedder.positional_encodings_matrix.numpy()
+    sns.heatmap(embedder.positional_encodings_matrix.numpy(), cbar_kws={'label': 'Wartość'})
+    plt.ylabel("Indeks słowa")
+    plt.xlabel('Indeks wektora pozycyjnego')
     plt.show()
     
-    fig, ax = plt.subplots(5)
-    for i, word_pos in enumerate(embedder.positional_encodings_matrix.numpy()[:5]):
-        ax[i].plot(word_pos)
+    fig, ax = plt.subplots(5, sharex=True, sharey=True)
+    for i, word_pos in enumerate(embedder.positional_encodings_matrix.numpy().transpose()[:5]):
+        ax[i].plot(word_pos, linestyle='dashed', marker='.', linewidth=0.5)
+        ax[i].title.set_text(f'Embedding nr {i}')
+    fig.supxlabel('Numer słowa w sekwencji')
+    fig.supylabel('Wartości')
     plt.show()
 
     # print(words_embeddings)
