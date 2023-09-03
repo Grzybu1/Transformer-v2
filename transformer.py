@@ -22,8 +22,8 @@ class Transformer(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     @typechecked
-    def forward(self, tokenized_src_sentences: TensorType['batch_size', 'tokens_num', int],
-                tokenized_tgt_sentences: TensorType['batch_size', 'tokens_num', int]):
+    def forward(self, tokenized_src_sentences: TensorType['batch_size', 'tokens_num_src', int],
+                tokenized_tgt_sentences: TensorType['batch_size', 'tokens_num_tgt', int]):
         src_embedded, src_mask = self.encoder_embedding(tokenized_src_sentences)
         tgt_embedded, tgt_mask = self.decoder_embedding(tokenized_tgt_sentences)
         
