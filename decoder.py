@@ -20,10 +20,10 @@ class DecoderLayer(nn.Module):
     
     @typechecked
     def forward(self, 
-                x: TensorType['batch_size', 'num_of_words', 'embedding_size', float],
+                x: TensorType['batch_size', 'num_of_words_dec', 'embedding_size', float],
                 enc_output: TensorType['batch_size', 'num_of_words', 'embedding_size', float],
                 in_mask: TensorType['batch_size', 1, 'max_seq_len', bool],
-                out_mask: TensorType['batch_size', 'max_seq_len', 'max_seq_len', bool]) -> TensorType['batch_size', 'num_of_words', 'embedding_size', float]:
+                out_mask: TensorType['batch_size', 'max_seq_len_tgt', 'max_seq_len_tgt', bool]) -> TensorType['batch_size', 'num_of_words_dec', 'embedding_size', float]:
         attn_output = self.self_attn(x, x, x, out_mask)
         x = x + self.dropout(attn_output)
         x = self.norm1(x)

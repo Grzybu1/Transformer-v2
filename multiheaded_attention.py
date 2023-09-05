@@ -25,15 +25,15 @@ class MultiHeadAttention(nn.Module):
         self.normalization_matrix = nn.Linear(self.heads_num * self.value_dimension, self.embedding_size)
     
     @typechecked
-    def MaskedAttention(self, Q:TensorType['batch_size', 'num_of_words', 'k_dimension', float],
+    def MaskedAttention(self, Q:TensorType['batch_size', 'num_of_words_q', 'k_dimension', float],
                 K:TensorType['batch_size', 'num_of_words', 'k_dimension', float],
                 V:TensorType['batch_size', 'num_of_words', 'v_dimension', float],
-                mask: TensorType['batch_size', 'num_of_it_for_single_sequence', 'num_of_words', bool]) -> TensorType['batch_size', 'num_of_words', 'v_dimension', float] :
-        
+                mask: TensorType['batch_size', 'num_of_it_for_single_sequence', 'num_of_words', bool]) -> TensorType['batch_size', 'num_of_words_q', 'v_dimension', float] :
         batch_size = Q.shape[0]
-        num_of_words = Q.shape[1]
+        num_of_words_q = Q.shape[1]
+        num_of_words = K.shape[1]
         dot_product = torch.matmul(Q, K.transpose(-2,-1)) / (self.embedding_size**-0.5)
-        assert list(dot_product.shape) == [batch_size, num_of_words, num_of_words]
+        assert list(dot_product.shape) == [batch_size, num_of_words_q, num_of_words]
         
         dot_product = dot_product.masked_fill(mask == False, -1e9)
         value_weights = torch.softmax(dot_product, dim=-1)
@@ -42,19 +42,20 @@ class MultiHeadAttention(nn.Module):
         
     
     @typechecked
-    def forward(self, Q:TensorType['batch_size', 'num_of_words', 'embedding_size', float],
+    def forward(self, Q:TensorType['batch_size', 'num_of_words_q', 'embedding_size', float],
                 K:TensorType['batch_size', 'num_of_words', 'embedding_size', float],
                 V:TensorType['batch_size', 'num_of_words', 'embedding_size', float],
-                mask: TensorType['batch_size', 'num_of_it_for_single_sequence', 'num_of_words', bool]) -> TensorType['batch_size', 'num_of_words', 'embedding_size', float]:
+                mask: TensorType['batch_size', 'num_of_it_for_single_sequence', 'num_of_words', bool]) -> TensorType['batch_size', 'num_of_words_q', 'embedding_size', float]:
         batch_size = Q.shape[0]
-        num_of_words = Q.shape[1]
+        num_of_words = K.shape[1]
+        num_of_words_q = Q.shape[1]
         value_results = []
         for head in self.heads:
             query_matrix = head['query_matrix']
             key_matrix = head['key_matrix']
             value_matrix = head['value_matrix']
             Q_i = query_matrix(Q)
-            assert list(Q_i.shape) == [batch_size, num_of_words, self.k_dimension]
+            assert list(Q_i.shape) == [batch_size, num_of_words_q, self.k_dimension]
             K_i = key_matrix(K)
             assert list(K_i.shape) == [batch_size, num_of_words, self.k_dimension]
             V_i = value_matrix(V)
@@ -63,7 +64,7 @@ class MultiHeadAttention(nn.Module):
             value_results.append(self.MaskedAttention(Q_i, K_i, V_i, mask))
             
         concatenated_attention_results = torch.cat(value_results, dim=-1)
-        assert list(concatenated_attention_results.shape) == [batch_size, num_of_words, self.heads_num * self.value_dimension]
+        assert list(concatenated_attention_results.shape) == [batch_size, num_of_words_q, self.heads_num * self.value_dimension]
         
         multihead_attention_result = self.normalization_matrix(concatenated_attention_results)
         return multihead_attention_result

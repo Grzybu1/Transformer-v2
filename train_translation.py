@@ -24,7 +24,7 @@ if __name__ == "__main__":
     d_hidden = 516
     max_seq_size = 75
     batch_size = 50
-    data_size = 50000
+    data_size = 25000
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('Using device:', device)
@@ -71,13 +71,15 @@ if __name__ == "__main__":
     
     model = Transformer(src_vocab_size=en_vocab_size, tgt_vocab_size=fr_vocab_size, embedding_size=embedding_size, num_heads=num_heads, num_layers=num_layers, max_seq_len=max_seq_size)
     file_to_start = 'trained_translation_transformer.pt'
-    if file_to_start != '':
+    if (file_to_start != '') & os.path.isfile(file_to_start):
         model.load_state_dict(torch.load(file_to_start))
+        print('Loaded given state_dict')
         
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
 
     model.train()
+results=[]
 print(f"There are: {tokenized_x_train.shape[0]//batch_size} batches")
 start_time = time.time()
 for epoch in range(10):
@@ -86,15 +88,17 @@ for epoch in range(10):
     batch = 0
     for x_train_batch, y_train_batch in zip(batchify(tokenized_x_train, batch_size), batchify(tokenized_y_train, batch_size)):
         optimizer.zero_grad()
-        output = model(x_train_batch, y_train_batch)
-        loss = criterion(output.contiguous().view(-1, fr_vocab_size), y_train_batch.contiguous().view(-1))
+        output = model(x_train_batch, y_train_batch[:,:-1])
+        loss = criterion(output.contiguous().view(-1, fr_vocab_size), y_train_batch[:, 1:].contiguous().view(-1))
         loss.backward()
         optimizer.step()
         print(f"Batch: {batch}, Loss: {loss.item()}")
+        results.append(loss.item())
         batch = batch+1
     print(f"Epoch took: {(time.time() - epoch_start_time)} s")
     torch.save(model.state_dict(), f'trained_translation_transformer_epoch_{epoch}.pt')
 
-print(f"Learning took: {(time.time() - epoch_start_time)/3600} h")
+print(f"Learning took: {(time.time() - start_time)/3600} h")
 torch.save(model.state_dict(), 'trained_translation_transformer.pt')
+np.savetxt("results_loss.txt", np.array(results), fmt="%s")
         

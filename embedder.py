@@ -58,7 +58,8 @@ class OutputEmbedderAndEncoder(EmbedderAndEncoderBase):
     @typechecked
     def generate_mask(self, tokenized_sentences: TensorType['batch_size', 'tokens_num', int], pad_token_id: int = 1) -> TensorType['batch_size', 'num_of_it_for_single_sequence', 'max_seq_len', bool]:
         mask = (tokenized_sentences != pad_token_id).unsqueeze(2)
-        nopeak = (torch.tril(torch.ones(1, self.max_seq_len, self.max_seq_len), diagonal=0)).bool()
+        sentence_len = tokenized_sentences.shape[1]
+        nopeak = (torch.tril(torch.ones(1, sentence_len, sentence_len), diagonal=0)).bool()
         mask = mask & nopeak
         return mask
 
